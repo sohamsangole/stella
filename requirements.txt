@@ -1,0 +1,8 @@
+fastapi
+uvicorn
+celery
+redis
+pydantic-settings
+requests
+cryptography==49.0.0
+PyJWT==2.13.0

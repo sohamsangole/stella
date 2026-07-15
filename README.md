@@ -1,8 +1,17 @@
-# Stella
+<div align="center">
+  <img src="stella.png" alt="Stella Logo" width="300" />
 
-A self-hosted, open-source AI software engineer. Stella listens to
-GitHub webhooks, reads your issues, plans a solution, writes the code,
-runs tests, and opens a Pull Request.
+  # Stella
+
+  **A self-hosted, open-source AI software engineer.**
+
+  [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+  [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+</div>
+
+<br />
+
+Stella listens to GitHub webhooks, reads your issues, plans a solution, writes the code, runs tests, and opens a Pull Request—entirely autonomously.
 
 ------------------------------------------------------------------------
 
