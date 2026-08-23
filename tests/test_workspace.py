@@ -3,7 +3,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from workspace import RemoteWorkspace, WorkspaceError
+from stella.workspace.workspace import RemoteWorkspace, WorkspaceError
 
 
 class RemoteWorkspaceTests(unittest.TestCase):
@@ -21,7 +21,7 @@ class RemoteWorkspaceTests(unittest.TestCase):
                 )
 
             clone.side_effect = create_clone
-            with patch("workspace.subprocess.run", clone):
+            with patch("stella.workspace.workspace.subprocess.run", clone):
                 with RemoteWorkspace(
                     clone_url="https://github.com/example/repo.git",
                     base_directory=str(workspace_root),
