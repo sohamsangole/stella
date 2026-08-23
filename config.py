@@ -6,6 +6,7 @@ class Settings(BaseSettings):
     github_private_key_path: str = ""
     github_token: str = ""
     redis_url: str = "redis://localhost:6379/0"
+    workspace_root: str = ""
 
     class Config:
         env_file = ".env"

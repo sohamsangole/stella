@@ -82,6 +82,10 @@ GITHUB_WEBHOOK_SECRET="your-webhook-secret"
 
 REDIS_URL="redis://localhost:6379/0"
 
+# Optional parent directory for temporary task workspaces.
+# Leave empty to use the operating system's temporary directory.
+WORKSPACE_ROOT=""
+
 GITHUB_APP_ID="your-app-id"
 
 GITHUB_PRIVATE_KEY_PATH="/absolute/path/to/private-key.pem"
@@ -137,10 +141,13 @@ celery -A worker.app worker --loglevel=info
 -   Receive the GitHub webhook
 -   Queue the task in Redis
 -   Celery picks up the task
--   Clone the repository
--   Generate a solution using the configured LLM
--   Commit the changes
--   Open a Pull Request
+-   Clone the repository into an isolated temporary workspace
+-   Start a deterministic acknowledgment agent
+-   Post a comment after the workspace is ready
+-   Clean up the temporary workspace
+
+The current milestone does not call an LLM, modify the repository, or open a
+Pull Request.
 
 
 ------------------------------------------------------------------------

@@ -2,7 +2,10 @@ import time
 import jwt
 import requests
 from celery import Celery
+from agent_runner import AcknowledgementAgent, AgentContext
 from config import settings
+from github_client import GitHubClient
+from workspace import RemoteWorkspace, WorkspaceError
 
 def get_installation_token(installation_id: int) -> str:
     if not settings.github_app_id or not settings.github_private_key_path or not installation_id:
@@ -36,38 +39,44 @@ app = Celery(
 
 @app.task(name="process_stella_task")
 def process_stella_task(webhook_payload: dict):
-    """
-    This is where Phase 2 will live. 
-    For now, we just print the payload to prove the queue works and send an ack comment.
-    """
+    """Clone the repository and run Stella's deterministic first agent."""
     issue_url = webhook_payload.get("issue", {}).get("html_url")
     comments_url = webhook_payload.get("issue", {}).get("comments_url")
     comment_body = webhook_payload.get("comment", {}).get("body")
     installation_id = webhook_payload.get("installation", {}).get("id")
+    clone_url = webhook_payload.get("repository", {}).get("clone_url")
     
     print(f"--- STELLA WORKER ACTIVATED ---")
     print(f"Received task for issue: {issue_url}")
     print(f"Comment was: {comment_body}")
     print(f"-------------------------------")
 
-    if comments_url:
-        try:
-            token = get_installation_token(installation_id)
-        except Exception as e:
-            print(f"Failed to get installation token: {e}")
-            return
+    if not comments_url or not clone_url:
+        print("Webhook payload is missing the comments URL or repository clone URL.")
+        return
 
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/vnd.github.v3+json",
-            "X-GitHub-Api-Version": "2022-11-28"
-        }
-        data = {
-            "body": "Stella is on it! I'll start working on this issue right away."
-        }
-        try:
-            response = requests.post(comments_url, headers=headers, json=data)
-            response.raise_for_status()
-            print("Successfully posted acknowledgment comment.")
-        except requests.RequestException as e:
-            print(f"Failed to post comment: {e}")
+    try:
+        token = get_installation_token(installation_id)
+        github = GitHubClient(token=token)
+
+        with RemoteWorkspace(
+            clone_url=clone_url,
+            token=token,
+            base_directory=settings.workspace_root or None,
+        ) as workspace:
+            print(f"Repository cloned into temporary workspace: {workspace.repository}")
+            agent = AcknowledgementAgent(github)
+            result = agent.run(
+                AgentContext(
+                    issue_url=issue_url or "",
+                    comments_url=comments_url,
+                    repository_path=workspace.repository,
+                )
+            )
+            print(f"Agent {result.agent} finished with status {result.status}.")
+    except WorkspaceError as error:
+        print(f"Failed to prepare repository workspace: {error}")
+    except requests.RequestException as error:
+        print(f"GitHub request failed: {error}")
+    except Exception as error:
+        print(f"Stella task failed: {error}")
