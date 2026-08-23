@@ -1,8 +1,8 @@
 import hmac
 import hashlib
 from fastapi import FastAPI, Request, HTTPException, Header
-from config import settings
-from worker import process_stella_task
+from stella.core.config import settings
+from stella.core.worker import process_stella_task
 
 app = FastAPI(title="Stella Webhook Server")
 

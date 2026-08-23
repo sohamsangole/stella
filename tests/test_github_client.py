@@ -4,7 +4,7 @@ from unittest.mock import Mock, patch
 
 requests_module = Mock()
 with patch.dict("sys.modules", {"requests": requests_module}):
-    from github_client import GitHubClient
+    from stella.clients.github_client import GitHubClient
 
 
 class GitHubClientTests(unittest.TestCase):

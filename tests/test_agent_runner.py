@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 
 
 with patch.dict("sys.modules", {"requests": Mock()}):
-    from agent_runner import AcknowledgementAgent, AgentContext
+    from stella.agents.agent_runner import AcknowledgementAgent, AgentContext
 
 
 class AcknowledgementAgentTests(unittest.TestCase):
