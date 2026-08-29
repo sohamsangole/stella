@@ -5,7 +5,14 @@ from celery import Celery
 from stella.agents.agent_runner import AcknowledgementAgent, AgentContext
 from stella.clients.github_client import GitHubClient
 from stella.core.config import settings
-from stella.core.state_machine import StateContext, StateMachine, TaskEvent
+from stella.core.state_machine import (
+    MaxReplansExceededError,
+    StateContext,
+    StateMachine,
+    TaskEvent,
+    TaskState,
+)
+from stella.states import get_runner
 from stella.workspace.workspace import RemoteWorkspace, WorkspaceError
 
 
@@ -93,7 +100,41 @@ def process_stella_task(webhook_payload: dict):
                 )
             )
             print(f"Agent {result.agent} finished with status {result.status}.")
-            print(f"State Context Current State: {state_machine.current_state.value}")
+
+            # Run automated state execution loop: PLAN -> CODE -> REVIEW -> TEST -> COMPLETED
+            terminal_states = {TaskState.COMPLETED, TaskState.FAILED}
+            while state_machine.current_state not in terminal_states:
+                current_state = state_machine.current_state
+                runner = get_runner(current_state)
+                if not runner:
+                    print(
+                        f"[Worker] No runner registered for state '{current_state.value}'. Failing task."
+                    )
+                    state_machine.transition(
+                        TaskEvent.FAIL,
+                        error=f"No runner registered for state '{current_state.value}'",
+                    )
+                    break
+
+                try:
+                    event, summary = runner.execute(state_context)
+                    print(
+                        f"[Worker] State '{current_state.value}' produced event '{event.value}' (summary: {summary})"
+                    )
+                    state_machine.transition(event)
+                except MaxReplansExceededError as error:
+                    print(f"[Worker] Max replans limit reached: {error}")
+                    break
+                except Exception as error:
+                    print(
+                        f"[Worker] Unexpected error in state '{current_state.value}': {error}"
+                    )
+                    state_machine.transition(TaskEvent.FAIL, error=str(error))
+                    break
+
+            print(
+                f"[Worker] Task finished in state: {state_machine.current_state.value}"
+            )
 
     except WorkspaceError as error:
         print(f"Failed to prepare repository workspace: {error}")
