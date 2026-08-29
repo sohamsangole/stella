@@ -48,11 +48,14 @@ class RemoteWorkspace:
         if self.token:
             # Pass credentials through the child environment so they are not embedded
             # in the clone URL, command output, Git config, or remote definition.
+            import base64
+            auth_bytes = f"x-access-token:{self.token}".encode("utf-8")
+            encoded_auth = base64.b64encode(auth_bytes).decode("utf-8")
             environment.update(
                 {
                     "GIT_CONFIG_COUNT": "1",
                     "GIT_CONFIG_KEY_0": "http.extraHeader",
-                    "GIT_CONFIG_VALUE_0": f"Authorization: Bearer {self.token}",
+                    "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {encoded_auth}",
                 }
             )
 
