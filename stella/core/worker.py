@@ -79,9 +79,12 @@ def process_stella_task(webhook_payload: dict):
         webhook_payload.get("repository", {}).get("owner", {}).get("login")
     )
     issue_number = webhook_payload.get("issue", {}).get("number", "unknown")
+    comment_author = webhook_payload.get("comment", {}).get("user", {}).get("login", "unknown")
+    author_association = webhook_payload.get("comment", {}).get("author_association", "unknown")
 
     print("--- STELLA WORKER ACTIVATED ---")
     print(f"Received task for issue: {issue_url}")
+    print(f"Comment by: {comment_author} (Association: {author_association})")
     print(f"Comment was: {comment_body}")
     print("-------------------------------")
 
