@@ -23,10 +23,21 @@ class RepositoryPublisher:
         self,
         repository: Path,
         token: str = "",
+        app_name: str = "coding-agent-stella",
+        app_id: str = "",
+        bot_name: Optional[str] = None,
+        bot_email: Optional[str] = None,
         command_runner: Callable = subprocess.run,
     ) -> None:
         self.repository = repository
         self.token = token
+        self.bot_name = bot_name or f"{app_name}[bot]"
+        if bot_email:
+            self.bot_email = bot_email
+        elif app_id:
+            self.bot_email = f"{app_id}+{app_name}[bot]@users.noreply.github.com"
+        else:
+            self.bot_email = f"{app_name}[bot]@users.noreply.github.com"
         self._command_runner = command_runner
 
     def prepare_branch(self, branch_name: str, default_branch: str) -> str:
@@ -47,22 +58,17 @@ class RepositoryPublisher:
                     f"origin/{branch_name}",
                 ]
             )
-        else:
+        elif self._remote_branch_exists(base_branch):
             self._run(
                 ["git", "checkout", "-b", branch_name, f"origin/{base_branch}"]
             )
+        else:
+            self._run(["git", "checkout", "-b", branch_name])
         return base_branch
 
     def commit_and_push(self, branch_name: str, commit_message: str) -> None:
-        self._run(["git", "config", "user.name", "Stella Bot"])
-        self._run(
-            [
-                "git",
-                "config",
-                "user.email",
-                "stella-bot@users.noreply.github.com",
-            ]
-        )
+        self._run(["git", "config", "user.name", self.bot_name])
+        self._run(["git", "config", "user.email", self.bot_email])
         self._run(["git", "add", "--", "main.py"])
         self._run(["git", "commit", "-m", commit_message])
         self._run(["git", "push", "-u", "origin", branch_name])

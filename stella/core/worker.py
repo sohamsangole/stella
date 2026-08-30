@@ -104,6 +104,8 @@ def process_stella_task(webhook_payload: dict):
             publisher = RepositoryPublisher(
                 repository=workspace.repository,
                 token=token,
+                app_name=getattr(settings, "github_app_name", "coding-agent-stella") or "coding-agent-stella",
+                app_id=getattr(settings, "github_app_id", "") or "",
             )
             base_branch = publisher.prepare_branch(
                 branch_name=branch_name,
