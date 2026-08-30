@@ -1,9 +1,10 @@
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import Mock, patch
 
-from stella.workspace.workspace import RemoteWorkspace, WorkspaceError
+from stella.workspace.workspace import RemoteWorkspace, RepositoryPublisher, WorkspaceError
 
 
 class RemoteWorkspaceTests(unittest.TestCase):
@@ -42,6 +43,101 @@ class RemoteWorkspaceTests(unittest.TestCase):
         with self.assertRaises(WorkspaceError):
             with RemoteWorkspace(clone_url=""):
                 pass
+
+
+class RepositoryPublisherTests(unittest.TestCase):
+    def test_prefers_master_and_reuses_existing_issue_branch(self) -> None:
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            if command[-1] == "refs/remotes/origin/master":
+                return subprocess.CompletedProcess(command, 0)
+            if command[-1] == "refs/remotes/origin/stella/issue-7":
+                return subprocess.CompletedProcess(command, 0)
+            return subprocess.CompletedProcess(command, 0)
+
+        publisher = RepositoryPublisher(
+            repository=Path("C:/workspace/repository"),
+            token="installation-token",
+            command_runner=run,
+        )
+
+        base_branch = publisher.prepare_branch(
+            branch_name="stella/issue-7",
+            default_branch="main",
+        )
+
+        self.assertEqual(base_branch, "master")
+        self.assertIn(
+            [
+                "git",
+                "checkout",
+                "-B",
+                "stella/issue-7",
+                "origin/stella/issue-7",
+            ],
+            commands,
+        )
+
+    def test_uses_default_branch_when_master_is_missing(self) -> None:
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            if command[-1] in {
+                "refs/remotes/origin/master",
+                "refs/remotes/origin/stella/issue-8",
+            }:
+                return subprocess.CompletedProcess(command, 1)
+            return subprocess.CompletedProcess(command, 0)
+
+        publisher = RepositoryPublisher(
+            repository=Path("C:/workspace/repository"),
+            command_runner=run,
+        )
+
+        base_branch = publisher.prepare_branch(
+            branch_name="stella/issue-8",
+            default_branch="develop",
+        )
+
+        self.assertEqual(base_branch, "develop")
+        self.assertIn(
+            ["git", "checkout", "-b", "stella/issue-8", "origin/develop"],
+            commands,
+        )
+
+    def test_commits_main_file_and_pushes_reusable_branch(self) -> None:
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append((command, kwargs))
+            return subprocess.CompletedProcess(command, 0)
+
+        publisher = RepositoryPublisher(
+            repository=Path("C:/workspace/repository"),
+            token="installation-token",
+            command_runner=run,
+        )
+
+        publisher.commit_and_push(
+            branch_name="stella/issue-7",
+            commit_message="Stella update for issue #7",
+        )
+
+        commands = [command for command, _ in calls]
+        self.assertEqual(
+            commands,
+            [
+                ["git", "config", "user.name", "Stella Bot"],
+                ["git", "config", "user.email", "stella-bot@users.noreply.github.com"],
+                ["git", "add", "--", "main.py"],
+                ["git", "commit", "-m", "Stella update for issue #7"],
+                ["git", "push", "-u", "origin", "stella/issue-7"],
+            ],
+        )
+        self.assertNotIn("installation-token", repr(commands))
 
 
 if __name__ == "__main__":
