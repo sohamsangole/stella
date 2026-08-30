@@ -108,6 +108,29 @@ class RepositoryPublisherTests(unittest.TestCase):
             commands,
         )
 
+    def test_falls_back_to_local_branch_when_base_branch_does_not_exist_remotely(self) -> None:
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            return subprocess.CompletedProcess(command, 1)
+
+        publisher = RepositoryPublisher(
+            repository=Path("C:/workspace/repository"),
+            command_runner=run,
+        )
+
+        base_branch = publisher.prepare_branch(
+            branch_name="stella/issue-9",
+            default_branch="main",
+        )
+
+        self.assertEqual(base_branch, "main")
+        self.assertIn(
+            ["git", "checkout", "-b", "stella/issue-9"],
+            commands,
+        )
+
     def test_commits_main_file_and_pushes_reusable_branch(self) -> None:
         calls = []
 
@@ -118,6 +141,8 @@ class RepositoryPublisherTests(unittest.TestCase):
         publisher = RepositoryPublisher(
             repository=Path("C:/workspace/repository"),
             token="installation-token",
+            app_name="coding-agent-stella",
+            app_id="12345",
             command_runner=run,
         )
 
@@ -130,8 +155,13 @@ class RepositoryPublisherTests(unittest.TestCase):
         self.assertEqual(
             commands,
             [
-                ["git", "config", "user.name", "Stella Bot"],
-                ["git", "config", "user.email", "stella-bot@users.noreply.github.com"],
+                ["git", "config", "user.name", "coding-agent-stella[bot]"],
+                [
+                    "git",
+                    "config",
+                    "user.email",
+                    "12345+coding-agent-stella[bot]@users.noreply.github.com",
+                ],
                 ["git", "add", "--", "main.py"],
                 ["git", "commit", "-m", "Stella update for issue #7"],
                 ["git", "push", "-u", "origin", "stella/issue-7"],
@@ -142,3 +172,4 @@ class RepositoryPublisherTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
