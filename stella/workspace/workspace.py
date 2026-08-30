@@ -3,7 +3,7 @@ import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 
 class WorkspaceError(RuntimeError):
@@ -14,6 +14,98 @@ class WorkspaceError(RuntimeError):
 class RepositoryWorkspace:
     root: Path
     repository: Path
+
+
+class RepositoryPublisher:
+    """Prepare and publish Stella's reusable issue branch."""
+
+    def __init__(
+        self,
+        repository: Path,
+        token: str = "",
+        command_runner: Callable = subprocess.run,
+    ) -> None:
+        self.repository = repository
+        self.token = token
+        self._command_runner = command_runner
+
+    def prepare_branch(self, branch_name: str, default_branch: str) -> str:
+        if not default_branch:
+            raise WorkspaceError("The webhook payload did not include a default branch.")
+
+        self._run(["git", "fetch", "origin"])
+        base_branch = (
+            "master" if self._remote_branch_exists("master") else default_branch
+        )
+        if self._remote_branch_exists(branch_name):
+            self._run(
+                [
+                    "git",
+                    "checkout",
+                    "-B",
+                    branch_name,
+                    f"origin/{branch_name}",
+                ]
+            )
+        else:
+            self._run(
+                ["git", "checkout", "-b", branch_name, f"origin/{base_branch}"]
+            )
+        return base_branch
+
+    def commit_and_push(self, branch_name: str, commit_message: str) -> None:
+        self._run(["git", "config", "user.name", "Stella Bot"])
+        self._run(
+            [
+                "git",
+                "config",
+                "user.email",
+                "stella-bot@users.noreply.github.com",
+            ]
+        )
+        self._run(["git", "add", "--", "main.py"])
+        self._run(["git", "commit", "-m", commit_message])
+        self._run(["git", "push", "-u", "origin", branch_name])
+
+    def _remote_branch_exists(self, branch_name: str) -> bool:
+        result = self._run(
+            [
+                "git",
+                "show-ref",
+                "--verify",
+                "--quiet",
+                f"refs/remotes/origin/{branch_name}",
+            ],
+            check=False,
+        )
+        return result.returncode == 0
+
+    def _run(self, command: list[str], check: bool = True):
+        return self._command_runner(
+            command,
+            cwd=self.repository,
+            check=check,
+            capture_output=True,
+            text=True,
+            env=_git_environment(self.token),
+        )
+
+
+def _git_environment(token: str) -> dict[str, str]:
+    environment = os.environ.copy()
+    if token:
+        import base64
+
+        auth_bytes = f"x-access-token:{token}".encode("utf-8")
+        encoded_auth = base64.b64encode(auth_bytes).decode("utf-8")
+        environment.update(
+            {
+                "GIT_CONFIG_COUNT": "1",
+                "GIT_CONFIG_KEY_0": "http.extraHeader",
+                "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {encoded_auth}",
+            }
+        )
+    return environment
 
 
 class RemoteWorkspace:
@@ -44,20 +136,9 @@ class RemoteWorkspace:
         root = Path(self._temporary_directory.name).resolve()
         repository = root / "repository"
 
-        environment = os.environ.copy()
-        if self.token:
-            # Pass credentials through the child environment so they are not embedded
-            # in the clone URL, command output, Git config, or remote definition.
-            import base64
-            auth_bytes = f"x-access-token:{self.token}".encode("utf-8")
-            encoded_auth = base64.b64encode(auth_bytes).decode("utf-8")
-            environment.update(
-                {
-                    "GIT_CONFIG_COUNT": "1",
-                    "GIT_CONFIG_KEY_0": "http.extraHeader",
-                    "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {encoded_auth}",
-                }
-            )
+        # Pass credentials through the child environment so they are not embedded
+        # in the clone URL, command output, Git config, or remote definition.
+        environment = _git_environment(self.token)
 
         try:
             subprocess.run(
