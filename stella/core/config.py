@@ -10,6 +10,11 @@ class Settings(BaseSettings):
     redis_url: str = "redis://localhost:6379/0"
     workspace_root: str = ""
 
+    # Generic LLM Configuration
+    llm_model: str = ""
+    llm_api_key: str = ""
+    llm_base_url: str = "https://api.openai.com/v1"
+
     class Config:
         env_file = ".env"
 
