@@ -3,6 +3,7 @@ from typing import Callable, Optional, Tuple
 
 from stella.core.state_machine import StateContext, TaskEvent, TaskState
 from stella.states.base import BaseStateRunner
+from stella.tools.file_tools import FileTools
 
 
 class CodeStateRunner(BaseStateRunner):
@@ -17,7 +18,9 @@ class CodeStateRunner(BaseStateRunner):
 
     def execute(self, context: StateContext) -> Tuple[TaskEvent, Optional[str]]:
         print(f"[CodeStateRunner] Generating code for task: {context.task_id}")
-        main_file = context.repository_path / "main.py"
+        tools = FileTools(context.repository_path)
+        main_file = tools._resolve_safe_path("main.py", must_exist=False)
+
         existing_content = main_file.read_text(encoding="utf-8") if main_file.exists() else ""
         if existing_content and not existing_content.endswith("\n"):
             existing_content += "\n"
@@ -28,7 +31,7 @@ class CodeStateRunner(BaseStateRunner):
 
         timestamp = self._clock().astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
         existing_content += f"# Stella update: {timestamp}\n"
-        main_file.write_text(existing_content, encoding="utf-8")
+        tools.update_file("main.py", existing_content)
 
         context.set_data("code_changes", {"modified_files": ["main.py"], "git_diff": ""})
 
